@@ -1,4 +1,4 @@
-import {openArchive,responseFromStore} from './crypto-runtime.mjs';
+import {openArchive,responseFromStore,fetchEncryptedArchive,PreviewLoadError} from './crypto-runtime.mjs?v=8e603da15201189f';
 const root=new URL('./',self.location.href);
 const appBase=root.pathname+'app/';
 let masterKey=null,store=null,pending=null,generation=0;
@@ -24,21 +24,11 @@ async function recoverKey(){
   return null;
 }
 
-async function decodeArchive(key,onProgress=()=>{}){
-    const releaseResponse=await fetch(new URL('release.json',root),{cache:'no-store'});
-    if(!releaseResponse.ok)throw Error('Release unavailable');
-    const release=await releaseResponse.json();
-    if(release.format!=='jmos-encrypted-v1'||!/^payload-[a-f0-9]{16}\.bin$/.test(release.payload)||!/^[a-f0-9]{64}$/.test(release.sha256))throw Error('Release invalid');
-    onProgress(0,release.bytes);
-    const response=await fetch(new URL(release.payload,root),{cache:'force-cache'});
-    if(!response.ok)throw Error('Archive unavailable');
-    const chunks=[];let received=0;
-    const reader=response.body.getReader();
-    while(true){const {value,done}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;if(received>release.bytes)throw Error('Archive integrity failed');onProgress(received,release.bytes);}
-    const bytes=new Uint8Array(received);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
-    const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
-    if(hash!==release.sha256||bytes.byteLength!==release.bytes)throw Error('Archive integrity failed');
-    return openArchive(bytes,key,appBase);
+async function decodeArchive(key,onProgress=()=>{},onNotice=()=>{}){
+    const bytes=await fetchEncryptedArchive(root,onProgress,onNotice);
+    onNotice('正在解密展示内容…');
+    try{return await openArchive(bytes,key,appBase);}
+    catch(error){if(error.name==='OperationError')throw new PreviewLoadError('KEY_INVALID','密钥不正确，请核对后重试。');throw new PreviewLoadError('ARCHIVE_INVALID','展示包无法读取，请刷新后重试。');}
 }
 async function archive(){
   if(store)return store;
@@ -69,10 +59,10 @@ self.addEventListener('message',event=>{
       if(key?.type!=='secret'||key.algorithm?.name!=='HKDF'||key.extractable){reply({ok:false});return;}
       const current=generation;
       try{
-        const opened=await decodeArchive(key,(loaded,total)=>reply({progress:{loaded,total}}));
+        const opened=await decodeArchive(key,(loaded,total)=>reply({progress:{loaded,total}}),message=>reply({notice:message}));
         if(current!==generation)throw Error('Session changed');
         generation++;masterKey=key;store=opened;pending=null;reply({ok:true});
-      }catch{reply({ok:false,error:'密钥不正确，或展示包已更新。请核对密钥后重试。'});}
+      }catch(error){reply({ok:false,error:error instanceof PreviewLoadError?error.message:'解锁过程被中断，请重试。',code:error.code||'SESSION_INTERRUPTED'});}
     }else if(event.data?.type==='JMOS_LOCK'){
       await lock();reply({ok:true});
     }else if(event.data?.type==='JMOS_STATUS')reply({ok:Boolean(store&&masterKey),key:store?masterKey:null});

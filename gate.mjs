@@ -1,4 +1,4 @@
-import {importAccessKey} from './crypto-runtime.mjs';
+import {importAccessKey} from './crypto-runtime.mjs?v=8e603da15201189f';
 const root=new URL(document.documentElement.dataset.siteRoot,location.origin);
 const workerURL=new URL('service-worker.js?v='+document.documentElement.dataset.runtimeRevision,root);
 const appBase=root.pathname+'app/';
@@ -17,6 +17,7 @@ function message(worker,value,onProgress=()=>{}){
     const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>{channel.port1.close();reject(Error('下载长时间没有响应，请检查网络后重试。'));},90000);};
     arm();
     channel.port1.onmessage=event=>{
+      if(event.data?.notice){arm();status(event.data.notice);return;}
       if(event.data?.progress){arm();onProgress(event.data.progress);return;}
       clearTimeout(timer);channel.port1.close();resolve(event.data);
     };
@@ -38,9 +39,14 @@ if(location.pathname!==root.pathname&&location.pathname!==root.pathname+'index.h
 }else{
   try{
     if(!isSecureContext||!crypto.subtle||!navigator.serviceWorker||typeof DecompressionStream==='undefined')throw Error('请使用新版 Chrome、Edge 或 Safari 打开此预览。');
-    registration=await navigator.serviceWorker.register(workerURL,{scope:root.pathname,type:'module',updateViaCache:'none'});
-    await navigator.serviceWorker.ready;
-    while(navigator.serviceWorker.controller?.scriptURL!==workerURL.href)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
+    let setupTimer;
+    try{
+      await Promise.race([(async()=>{
+        registration=await navigator.serviceWorker.register(workerURL,{scope:root.pathname,type:'module',updateViaCache:'none'});
+        await navigator.serviceWorker.ready;
+        while(navigator.serviceWorker.controller?.scriptURL!==workerURL.href)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
+      })(),new Promise((_,reject)=>{setupTimer=setTimeout(()=>reject(Error('解锁程序连接超时，请点击“重新连接”重试。')),45000);})]);
+    }finally{clearTimeout(setupTimer);}
     navigator.serviceWorker.addEventListener('message',event=>{
       if(event.source!==navigator.serviceWorker.controller||event.source?.scriptURL!==workerURL.href)return;
       if(event.data?.type==='JMOS_SESSION_REQUEST'&&event.ports[0])event.ports[0].postMessage({key:masterKey});
@@ -56,11 +62,11 @@ if(location.pathname!==root.pathname&&location.pathname!==root.pathname+'index.h
         const result=await message(navigator.serviceWorker.controller,{type:'JMOS_UNLOCK',key},({loaded,total})=>{
           status(loaded===total?'正在解密展示内容…':`正在下载加密展示包… ${(loaded/1048576).toFixed(2)} / ${(total/1048576).toFixed(2)} MB`);
         });
-        if(!result.ok)throw Error(result.error||'密钥不正确，请重新输入。');
+        if(!result.ok){const error=Error(result.error||'解锁失败，请重试。');error.code=result.code;throw error;}
         masterKey=key;showViewer();
-      }catch(error){masterKey=null;status(error.message,true);$('access-key').focus();}
+      }catch(error){masterKey=null;$('status').dataset.errorCode=error.code||'CLIENT';status(error.message,true);$('access-key').focus();}
       finally{$('unlock').disabled=false;}
     });
     $('lock').addEventListener('click',async()=>{masterKey=null;await message(navigator.serviceWorker.controller,{type:'JMOS_LOCK'});showLocked('预览已锁定。请重新输入密钥。');});
-  }catch(error){status(error.message,true);$('unlock').disabled=true;}
+  }catch(error){status(error.message,true);$('status').dataset.errorCode='SETUP';$('unlock').disabled=false;$('unlock').textContent='重新连接';$('unlock').addEventListener('click',event=>{event.preventDefault();const url=new URL(location.href);url.searchParams.set('retry',String(Date.now()));location.replace(url.href);});}
 }

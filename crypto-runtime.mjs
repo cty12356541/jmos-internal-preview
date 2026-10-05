@@ -38,6 +38,61 @@ export async function openArchive(bytes,masterKey,expectedBase){
   return validateStore(JSON.parse(decoder.decode(plain)),expectedBase);
 }
 
+export class PreviewLoadError extends Error {
+  constructor(code,message){super(message);this.code=code;}
+}
+
+export async function fetchEncryptedArchive(root,onProgress=()=>{},onNotice=()=>{},{fetcher=fetch,retries=2,concurrency=4,timeoutMs=25000,delay=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
+  const fail=(code,message)=>new PreviewLoadError(code,message);
+  async function retry(task,label){
+    let last;
+    for(let attempt=0;attempt<=retries;attempt++){
+      if(attempt){onNotice(`连接中断，正在自动重试${label}（${attempt}/${retries}）…`);await delay(attempt*350);}
+      try{return await task(attempt);}catch(error){last=error;}
+    }
+    if(last instanceof PreviewLoadError)throw last;
+    throw fail('NETWORK','展示包下载失败，请检查网络后重试。');
+  }
+  const release=await retry(async()=>{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+    try{
+      const url=new URL('release.json',root);url.searchParams.set('load',String(Date.now()));
+      const response=await fetcher(url,{cache:'no-store',signal:controller.signal});
+      if(!response.ok)throw fail('CONFIG_DOWNLOAD','无法下载预览配置，请检查网络后重试。');
+      return await response.json();
+    }finally{clearTimeout(timer);}
+  },'预览配置');
+  if(release?.format!=='jmos-encrypted-v1'||!/^payload-[a-f0-9]{16}\.bin$/.test(release.payload)||!/^[a-f0-9]{64}$/.test(release.sha256)||!Number.isSafeInteger(release.bytes)||release.bytes<52||release.bytes>32*1024*1024)throw fail('CONFIG_INVALID','预览配置无效，请刷新后重试。');
+  const parts=release.parts||[{name:release.payload,bytes:release.bytes,sha256:release.sha256}];
+  if(!Array.isArray(parts)||!parts.length||parts.length>32||parts.reduce((total,part)=>total+(part?.bytes||0),0)!==release.bytes||parts.some(part=>!/^payload-[a-f0-9]{16}(?:-\d{2})?\.bin$/.test(part?.name)||!Number.isSafeInteger(part.bytes)||part.bytes<=0||!/^[a-f0-9]{64}$/.test(part.sha256)))throw fail('CONFIG_INVALID','预览配置无效，请刷新后重试。');
+  const received=parts.map(()=>0),chunks=parts.map(()=>null);let next=0;
+  const progress=()=>onProgress(received.reduce((sum,value)=>sum+value,0),release.bytes);
+  const checksum=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
+  progress();
+  await Promise.all(Array.from({length:Math.min(concurrency,parts.length)},async()=>{
+    while(next<parts.length){
+      const index=next++,part=parts[index];
+      chunks[index]=await retry(async attempt=>{
+        received[index]=0;progress();
+        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+        try{
+          const response=await fetcher(new URL(part.name,root),{cache:attempt?'reload':'force-cache',signal:controller.signal});
+          if(!response.ok||!response.body)throw fail('NETWORK','展示包下载失败，请检查网络后重试。');
+          const reader=response.body.getReader(),buffers=[];
+          while(true){const {value,done}=await reader.read();if(done)break;buffers.push(value);received[index]+=value.byteLength;if(received[index]>part.bytes)throw fail('INTEGRITY','展示包校验失败，请刷新后重试。');progress();}
+          const bytes=new Uint8Array(received[index]);let offset=0;for(const buffer of buffers){bytes.set(buffer,offset);offset+=buffer.byteLength;}
+          if(bytes.length!==part.bytes||await checksum(bytes)!==part.sha256)throw fail('INTEGRITY','展示包校验失败，请刷新后重试。');
+          return bytes;
+        }finally{clearTimeout(timer);}
+      },'展示内容');
+    }
+  }));
+  const bytes=new Uint8Array(release.bytes);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  onNotice('正在校验加密展示包…');
+  if(await checksum(bytes)!==release.sha256)throw fail('INTEGRITY','展示包校验失败，请刷新后重试。');
+  return bytes;
+}
+
 export async function responseFromStore(request,store){
   const url=new URL(request.url);
   let pathname;
