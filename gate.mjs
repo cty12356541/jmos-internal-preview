@@ -1,4 +1,4 @@
-import {importAccessKey} from './crypto-runtime.mjs?v=34d725d19e22e4fa';
+import {importAccessKey} from './crypto-runtime.mjs?v=3e8bf968a8c6922b';
 const root=new URL(document.documentElement.dataset.siteRoot,location.origin);
 const workerURL=new URL('service-worker.js?v='+document.documentElement.dataset.runtimeRevision,root);
 const appBase=root.pathname+'app/';
