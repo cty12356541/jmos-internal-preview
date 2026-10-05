@@ -42,7 +42,7 @@ export class PreviewLoadError extends Error {
   constructor(code,message){super(message);this.code=code;}
 }
 
-export async function fetchEncryptedArchive(root,onProgress=()=>{},onNotice=()=>{},{fetcher=fetch,retries=2,concurrency=4,timeoutMs=25000,delay=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
+export async function fetchEncryptedArchive(root,onProgress=()=>{},onNotice=()=>{},{fetcher=fetch,retries=2,concurrency=4,timeoutMs=45000,delay=ms=>new Promise(resolve=>setTimeout(resolve,ms))}={}){
   const fail=(code,message)=>new PreviewLoadError(code,message);
   async function retry(task,label){
     let last;
@@ -74,12 +74,15 @@ export async function fetchEncryptedArchive(root,onProgress=()=>{},onNotice=()=>
       const index=next++,part=parts[index];
       chunks[index]=await retry(async attempt=>{
         received[index]=0;progress();
-        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
+        const controller=new AbortController();let timer;
+        const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),timeoutMs);};
+        arm();
         try{
           const response=await fetcher(new URL(part.name,root),{cache:attempt?'reload':'force-cache',signal:controller.signal});
           if(!response.ok||!response.body)throw fail('NETWORK','展示包下载失败，请检查网络后重试。');
+          arm();
           const reader=response.body.getReader(),buffers=[];
-          while(true){const {value,done}=await reader.read();if(done)break;buffers.push(value);received[index]+=value.byteLength;if(received[index]>part.bytes)throw fail('INTEGRITY','展示包校验失败，请刷新后重试。');progress();}
+          while(true){const {value,done}=await reader.read();if(done)break;arm();buffers.push(value);received[index]+=value.byteLength;if(received[index]>part.bytes)throw fail('INTEGRITY','展示包校验失败，请刷新后重试。');progress();}
           const bytes=new Uint8Array(received[index]);let offset=0;for(const buffer of buffers){bytes.set(buffer,offset);offset+=buffer.byteLength;}
           if(bytes.length!==part.bytes||await checksum(bytes)!==part.sha256)throw fail('INTEGRITY','展示包校验失败，请刷新后重试。');
           return bytes;

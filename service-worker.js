@@ -1,4 +1,4 @@
-import {openArchive,responseFromStore,fetchEncryptedArchive,PreviewLoadError} from './crypto-runtime.mjs?v=8e603da15201189f';
+import {openArchive,responseFromStore,fetchEncryptedArchive,PreviewLoadError} from './crypto-runtime.mjs?v=34d725d19e22e4fa';
 const root=new URL('./',self.location.href);
 const appBase=root.pathname+'app/';
 let masterKey=null,store=null,pending=null,generation=0;

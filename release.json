@@ -1,48 +1,48 @@
 {
   "format": "jmos-encrypted-v1",
-  "payload": "payload-560a52c57d4bf2b6.bin",
-  "sha256": "560a52c57d4bf2b67f2712d11720503a4da06d9ccd66e2050d1551280331209e",
-  "bytes": 2777460,
+  "payload": "payload-d6f90ad7745e8c46.bin",
+  "sha256": "d6f90ad7745e8c462ddb459797406fd0d9d37f6381f56f923fd68d1080796937",
+  "bytes": 2777454,
   "parts": [
     {
-      "name": "payload-560a52c57d4bf2b6-00.bin",
+      "name": "payload-d6f90ad7745e8c46-00.bin",
       "bytes": 393216,
-      "sha256": "0096efbe630f6dbbca83155a510681654b69ca0dd6f3254177dd1f355a613589"
+      "sha256": "38a5c2e0045123c78a03adc64411babe55574180d36491791f33141b70746a1b"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-01.bin",
+      "name": "payload-d6f90ad7745e8c46-01.bin",
       "bytes": 393216,
-      "sha256": "a787b6279c7ec051fd672dbca1c46c13399be558533d4c6161fe374c49051c1c"
+      "sha256": "3319d6513d37d7bf09213322151f5b08113f9e3cbc81148b56e30d8efa7b4cde"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-02.bin",
+      "name": "payload-d6f90ad7745e8c46-02.bin",
       "bytes": 393216,
-      "sha256": "af2cfc58d054fc7cea7ff5412d55d27f2c2bba9b8ef006ab58f1983a89421652"
+      "sha256": "ef23520f1eda6685f168fbdca1b7f6e438969e9b41115af8291fe16a6ede6066"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-03.bin",
+      "name": "payload-d6f90ad7745e8c46-03.bin",
       "bytes": 393216,
-      "sha256": "ee96fd064023e4d723dc7b6f032f368d8e130f7aaa0942e2daf7408f3cfe0baa"
+      "sha256": "a894627a90115c78a48d317d3c263a8529bc00d3dc2a8b92402fafc0f28498f3"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-04.bin",
+      "name": "payload-d6f90ad7745e8c46-04.bin",
       "bytes": 393216,
-      "sha256": "4c95648e3bd3f3022892647a7d0daa12363e4cf43cd3e3a32eb384b29a74fe61"
+      "sha256": "4e0ecdf7cf0bb89deb0e2ed24f90b6a32bc352bf022807ec22e34df6b97cac15"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-05.bin",
+      "name": "payload-d6f90ad7745e8c46-05.bin",
       "bytes": 393216,
-      "sha256": "408df5e8061da3fd43668ee0f7e7e5792ac01b958a2a397a4935be571d6c79cd"
+      "sha256": "83d5d009a258936920041ba22753880de5342e10ea49cda8fb68c22ee153df72"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-06.bin",
+      "name": "payload-d6f90ad7745e8c46-06.bin",
       "bytes": 393216,
-      "sha256": "11f345134a9b9531700338d72746b45de7d4c3b051c808fcc52747144c82d1c0"
+      "sha256": "94e7080dca65b543c1d5310beed09a8c8472c1a3652a3f40bce0f52ead11a1e1"
     },
     {
-      "name": "payload-560a52c57d4bf2b6-07.bin",
-      "bytes": 24948,
-      "sha256": "fe4d84b0af9f203b5387888967b5ff9cf0aa522ca7e86efa0e40ecf11bcb18bc"
+      "name": "payload-d6f90ad7745e8c46-07.bin",
+      "bytes": 24942,
+      "sha256": "83e2247fb24a346d87072016c4d636f5d519bd189752d16e059de03b7c7f2f76"
     }
   ]
 }
