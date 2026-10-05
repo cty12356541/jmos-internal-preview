@@ -1,5 +1,6 @@
 import {importAccessKey} from './crypto-runtime.mjs';
 const root=new URL(document.documentElement.dataset.siteRoot,location.origin);
+const workerURL=new URL('service-worker.js?v='+document.documentElement.dataset.runtimeRevision,root);
 const appBase=root.pathname+'app/';
 const $=id=>document.getElementById(id);
 let registration,masterKey=null;
@@ -37,11 +38,11 @@ if(location.pathname!==root.pathname&&location.pathname!==root.pathname+'index.h
 }else{
   try{
     if(!isSecureContext||!crypto.subtle||!navigator.serviceWorker||typeof DecompressionStream==='undefined')throw Error('请使用新版 Chrome、Edge 或 Safari 打开此预览。');
-    registration=await navigator.serviceWorker.register(new URL('service-worker.js',root),{scope:root.pathname,type:'module',updateViaCache:'none'});
+    registration=await navigator.serviceWorker.register(workerURL,{scope:root.pathname,type:'module',updateViaCache:'none'});
     await navigator.serviceWorker.ready;
-    if(!navigator.serviceWorker.controller)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
+    while(navigator.serviceWorker.controller?.scriptURL!==workerURL.href)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
     navigator.serviceWorker.addEventListener('message',event=>{
-      if(event.source!==navigator.serviceWorker.controller||event.source?.scriptURL!==new URL('service-worker.js',root).href)return;
+      if(event.source!==navigator.serviceWorker.controller||event.source?.scriptURL!==workerURL.href)return;
       if(event.data?.type==='JMOS_SESSION_REQUEST'&&event.ports[0])event.ports[0].postMessage({key:masterKey});
       if(event.data?.type==='JMOS_SESSION_LOCKED')showLocked('预览已锁定。请重新输入密钥。');
     });
