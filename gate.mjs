@@ -9,11 +9,16 @@ function safeTarget(){
   try{const url=new URL(next,root);if(url.origin===root.origin&&url.pathname.startsWith(appBase)&&!url.username&&!url.password)return url.pathname+url.search+url.hash;}catch{}
   return appBase;
 }
-function message(worker,value){
+function message(worker,value,onProgress=()=>{}){
   return new Promise((resolve,reject)=>{
     const channel=new MessageChannel();
-    const timer=setTimeout(()=>{channel.port1.close();reject(Error('解锁超时，请刷新页面后重试。'));},25000);
-    channel.port1.onmessage=event=>{clearTimeout(timer);channel.port1.close();resolve(event.data);};
+    let timer;
+    const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>{channel.port1.close();reject(Error('下载长时间没有响应，请检查网络后重试。'));},90000);};
+    arm();
+    channel.port1.onmessage=event=>{
+      if(event.data?.progress){arm();onProgress(event.data.progress);return;}
+      clearTimeout(timer);channel.port1.close();resolve(event.data);
+    };
     worker.postMessage(value,[channel.port2]);
   });
 }
@@ -47,7 +52,9 @@ if(location.pathname!==root.pathname&&location.pathname!==root.pathname+'index.h
       event.preventDefault();$('unlock').disabled=true;status('正在解锁展示包…');
       try{
         const key=await importAccessKey($('access-key').value);
-        const result=await message(navigator.serviceWorker.controller,{type:'JMOS_UNLOCK',key});
+        const result=await message(navigator.serviceWorker.controller,{type:'JMOS_UNLOCK',key},({loaded,total})=>{
+          status(loaded===total?'正在解密展示内容…':`正在下载加密展示包… ${(loaded/1048576).toFixed(2)} / ${(total/1048576).toFixed(2)} MB`);
+        });
         if(!result.ok)throw Error(result.error||'密钥不正确，请重新输入。');
         masterKey=key;showViewer();
       }catch(error){masterKey=null;status(error.message,true);$('access-key').focus();}

@@ -24,14 +24,18 @@ async function recoverKey(){
   return null;
 }
 
-async function decodeArchive(key){
+async function decodeArchive(key,onProgress=()=>{}){
     const releaseResponse=await fetch(new URL('release.json',root),{cache:'no-store'});
     if(!releaseResponse.ok)throw Error('Release unavailable');
     const release=await releaseResponse.json();
     if(release.format!=='jmos-encrypted-v1'||!/^payload-[a-f0-9]{16}\.bin$/.test(release.payload)||!/^[a-f0-9]{64}$/.test(release.sha256))throw Error('Release invalid');
+    onProgress(0,release.bytes);
     const response=await fetch(new URL(release.payload,root),{cache:'force-cache'});
     if(!response.ok)throw Error('Archive unavailable');
-    const bytes=await response.arrayBuffer();
+    const chunks=[];let received=0;
+    const reader=response.body.getReader();
+    while(true){const {value,done}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;if(received>release.bytes)throw Error('Archive integrity failed');onProgress(received,release.bytes);}
+    const bytes=new Uint8Array(received);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
     const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(v=>v.toString(16).padStart(2,'0')).join('');
     if(hash!==release.sha256||bytes.byteLength!==release.bytes)throw Error('Archive integrity failed');
     return openArchive(bytes,key,appBase);
@@ -65,7 +69,7 @@ self.addEventListener('message',event=>{
       if(key?.type!=='secret'||key.algorithm?.name!=='HKDF'||key.extractable){reply({ok:false});return;}
       const current=generation;
       try{
-        const opened=await decodeArchive(key);
+        const opened=await decodeArchive(key,(loaded,total)=>reply({progress:{loaded,total}}));
         if(current!==generation)throw Error('Session changed');
         generation++;masterKey=key;store=opened;pending=null;reply({ok:true});
       }catch{reply({ok:false,error:'密钥不正确，或展示包已更新。请核对密钥后重试。'});}
